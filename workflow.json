@@ -1,0 +1,233 @@
+{
+  "name":"AI Video Pipeline — AtlasCloud (GPT Image 2 + Seedance 2.0)",
+  "nodes":[
+    {
+      "parameters":{
+        "httpMethod":"POST",
+        "path":"content",
+        "responseMode":"onReceived",
+        "options":{}
+      },
+      "id":"webhook",
+      "name":"Webhook",
+      "type":"n8n-nodes-base.webhook",
+      "typeVersion":2,
+      "position":[
+        0,
+        300
+      ],
+      "webhookId":"0c411fde-648c-4bae-8191-d7d49c6fd26f"
+    },
+    {
+      "parameters":{
+        "model":"openai/gpt-4o",
+        "messages":{
+          "values":[
+            {
+              "role":"system",
+              "content":"You are an expert image prompt writer for AI image generation. Given a content brief, write a detailed, vivid image prompt optimized for GPT Image 2. The prompt should describe the scene, lighting, style, camera angle, and mood. Output ONLY the image prompt, nothing else."
+            },
+            {
+              "role":"user",
+              "content":"={{ $json.body.prompt }}"
+            }
+          ]
+        },
+        "options":{
+          "temperature":0.7,
+          "maxTokens":500
+        }
+      },
+      "id":"llm-write-prompt",
+      "name":"LLM — Write Image Prompt (GPT-4o)",
+      "type":"n8n-nodes-base.openAi",
+      "typeVersion":1,
+      "position":[
+        250,
+        300
+      ],
+      "credentials":{
+        "openAiApi":{
+          "id":"JgtkYjaBmOIiTtoT",
+          "name":"AtlasCloud OpenAI (GPT-4o)"
+        }
+      }
+    },
+    {
+      "parameters":{
+        "category":"text_to_image",
+        "modelUuid":"gpt-image-2",
+        "prompt":"={{ $json.message.content }}",
+        "requiredParameters":{
+          "value":{}
+        },
+        "optionalParameters":{
+          "value":{
+            "size":"1024x1024",
+            "num_images":1
+          }
+        },
+        "executionMode":"wait",
+        "pollingOptions":{
+          "maxWaitTime":15,
+          "pollInterval":2,
+          "maxRetries":20
+        }
+      },
+      "id":"atlascloud-image",
+      "name":"AtlasCloud — GPT Image 2 (Generate Image)",
+      "type":"n8n-nodes-atlascloud.atlasCloudTaskSubmit",
+      "typeVersion":1,
+      "position":
+      500,
+      300
+      ],
+  "credentials":{
+    "atlasCloudApi":{
+      "id":"LSKxsUikzvgm8jNT",
+      "name":"AtlasCloud API"
+    }
+  }
+},
+{
+  "parameters":{
+    "assignments":{
+      "assignments":[
+        {
+          "id":"set-image-url",
+          "name":"imageUrl",
+          "value":"={{ $json.output.image_url || ($json.output && $json.output[0] && $json.output[0].url)}}",
+          "type":"string"
+        },
+        {
+          "id":"set-original-prompt",
+          "name":"originalPrompt",
+          "value":"={{ $('webhook').item.json.body.prompt }}",
+          "type":"string"
+        }
+      ]
+    },
+    "options":{}
+  },
+  "id":"set-image-url",
+  "name":"Set Variables — Extract Image URL",
+  "type":"n8n-nodes-base.set",
+  "typeVersion":3,
+  "position":[
+    750,
+    300
+  ]
+},
+{
+  "parameters":{
+    "category":"image_to_video",
+    "modelUuid":"seedance-2.0",
+    "prompt":"={{ $json.imageUrl }}",
+    "requiredParameters":{
+      "value":{
+        "image_url":"={{ $json.imageUrl }}"
+      }
+    },
+    "optionalParameters":{
+      "value":
+      "duration":5,
+      "resolution":"1080p"
+    }
+  },
+  "executionMode":"wait",
+  "pollingOptions":{
+    "maxWaitTime":30,
+    "pollInterval":3,
+    "maxRetries":30
+  }
+},
+"id":"atlascloud-video",
+"name":"AtlasCloud — Seedance 2.0 (Image to Video)",
+"type":"n8n-nodes-atlascloud.atlasCloudTaskSubmit",
+"typeVersion":1,
+"position":[
+  1000,
+  300
+],
+"credentials":{
+  "atlasCloudApi":{
+    "id":"LSKxsUikzvgm8jNT",
+    "name":"AtlasCloud API"
+  }
+}
+},
+{
+  "parameters":{
+    "text":"=✅ Video generated successfully!\n\n**Original Prompt**: {{ $json.originalPrompt }}\n**Duration**: 5 seconds\n**Resolution**: 1080p\n**Model**: Seedance 2.0\n\n**Video Output**: {{ $json.output.video_url || $json.output.url }}\n\n**Generated At**: {{ $now.format('YYYY-MM-DD HH:mm:ss') }}"
+  },
+  "id":"notify",
+  "name":"Notification (Output)",
+  "type":"n8n-nodes-base.noOp",
+  "typeVersion":1,
+  "position":[
+    1250,
+    300
+  ]
+}
+],
+"connections":{
+  "webhook":{
+    "main":[
+      [
+        {
+          "node":"llm-write-prompt",
+          "type":"main",
+          "index":0
+        }
+      ]
+    ]
+  },
+  "llm-write-prompt":{
+    "main":[
+      [
+        {
+          "node":"atlascloud-image",
+          "type":"main",
+          "index":0
+        }
+      ]
+    ]
+  },
+  "atlascloud-image":{
+    "main":[
+      [
+        {
+          "node":"set-image-url",
+          "type":"main",
+          "index":0
+        }
+      ]
+    ]
+  },
+  "set-image-url":{
+    "main":[
+      [
+        {
+          "node":"atlascloud-video",
+          "type":"main",
+          "index":0
+          }
+      ]
+    ]
+  },
+  "atlascloud-video":{
+    "main":[
+      [
+        {
+          "node":"notify",
+          "type":"main",
+          "index":0
+        }
+      ]
+    ]
+  }
+},
+"settings":null,
+"staticData":null,
+"pinData":{}
+}
